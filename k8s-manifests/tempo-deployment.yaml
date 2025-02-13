@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  labels:
+    app: tempo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tempo
+  template:
+    metadata:
+      labels:
+        app: tempo
+    spec:
+      containers:
+      - name: tempo
+        image: grafana/tempo:latest
+        args: [ "-config.file=/etc/tempo.yaml" ]
+        ports:
+        - containerPort: 3200
+        - containerPort: 14250 #jaeger grpc
+        volumeMounts:
+        - name: tempo-config
+          mountPath: /etc/tempo.yaml
+          subPath: tempo.yaml
+        - name: tempo-data
+          mountPath: /tmp/tempo
+      volumes:
+      - name: tempo-config
+        configMap:
+          name: tempo-config
+      - name: tempo-data
+        emptyDir: {}
