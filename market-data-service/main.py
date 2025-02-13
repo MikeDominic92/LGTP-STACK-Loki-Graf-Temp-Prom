@@ -8,6 +8,7 @@ from pythonjsonlogger import jsonlogger
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
 import time
+import os
 
 from opentelemetry import trace, metrics
 from opentelemetry.sdk.trace import TracerProvider
@@ -27,19 +28,24 @@ logger.addHandler(logHandler)
 logger.setLevel(logging.INFO)
 
 # Set up OpenTelemetry
-trace.set_tracer_provider(TracerProvider())
-tracer = trace.get_tracer(__name__)
+if os.getenv('ENABLE_TELEMETRY', 'false').lower() == 'true':
+    trace.set_tracer_provider(TracerProvider())
+    tracer = trace.get_tracer(__name__)
 
-# Configure OTLP exporters
-otlp_span_exporter = OTLPSpanExporter(endpoint="http://otel-collector:4317", insecure=True)
-trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_span_exporter))
+    # Configure OTLP exporters
+    otlp_endpoint = os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://localhost:4317')
+    otlp_span_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
+    trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_span_exporter))
 
-# Metrics
-metric_reader = PeriodicExportingMetricReader(
-    OTLPMetricExporter(endpoint="http://otel-collector:4317", insecure=True)
-)
-metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
-meter = metrics.get_meter(__name__)
+    # Metrics
+    metric_reader = PeriodicExportingMetricReader(
+        OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True)
+    )
+    metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
+    meter = metrics.get_meter(__name__)
+else:
+    tracer = trace.get_tracer(__name__)
+    meter = metrics.get_meter(__name__)
 
 # Create metrics
 request_counter = meter.create_counter(
@@ -175,4 +181,6 @@ async def get_historical_data(symbol: str, days: int = 30):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    port = int(os.getenv("PORT", "8080"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
