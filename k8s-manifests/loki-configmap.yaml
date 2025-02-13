@@ -22,12 +22,11 @@ data:
           schema: v11
           index:
             prefix: loki_index_
-            interval: 24h
+            period: 24h
 
     storage_config:
       boltdb_shipper:
         active_index_directory: /loki/index
-        shared_dir: /loki/boltdb-shipper
 
       filesystem:
         directory: /loki/chunks
